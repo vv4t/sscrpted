@@ -1,0 +1,14 @@
+{
+  "name": "sscrpted",
+  "version": "1.0.0",
+  "author": "vv4t",
+  "description": "Sscrpted uses AES-256 and scrypt to generate static password protected HTML pages with assets such as scripts, images and stylesheets used",
+  "main": "./sscrpted.js",
+  "dependencies": {
+    "aes-js": "^3.1.2",
+    "scrypt-js": "^3.0.1"
+  },
+  "bin": {
+    "sscrpted": "./sscrpted.js"
+  }
+}
