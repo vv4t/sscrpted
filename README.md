@@ -68,13 +68,13 @@ login or it may be marked as undefined.
 
 ```
 <html>
-  <head>
-    <title>My Encrypted Website</title>
-    <link href="{{{$encrypt:style.css}}}" rel="stylesheet"></link>
-  </head>
   <body>
-    Hello, World!
-    <img src="{{{$encrypt:image.png}}}"></img>
+    {{{$script}}}
+    <script>
+      while (!page_login(prompt("password:"))) {
+        alert("incorrect password");
+      }
+    </script>
   </body>
 </html>
 ```
