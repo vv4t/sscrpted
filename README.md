@@ -3,6 +3,8 @@
 Sscrpted uses `AES-256` and `scrypt` to generate static password protected HTML
 pages with assets such as scripts, images and stylesheets used.
 
+[Example](https://vv4t.github.io/demo/pwd/)
+
 # Install
 
 `npm install sscrpted`
