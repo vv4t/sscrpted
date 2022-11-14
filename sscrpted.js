@@ -18,7 +18,7 @@ function main()
   
   // process default args
   let argc = 2;
-  const page = process.argv[argc];
+  const page = process.argv[argc++];
   const login = process.argv[argc++];
   const pwd = process.argv[argc++];
   const out = process.argv[argc++];
