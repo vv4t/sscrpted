@@ -24,6 +24,12 @@ Options:
   -s <salt>:  use custom salt (default is 'abc123!@#')
 ```
 
+## Example
+
+```
+sscrpted index.html login.html abc123 out/index.html
+```
+
 ## Page
 
 All text contents of the HTML file will be encrypted.

@@ -6,32 +6,42 @@ function page_login(pwd)
   const key = gen_pwd(pwd, "{{{$salt}}}");
   const aes_ctr = new aesjs.ModeOfOperation.ctr(key);
   
+  // note that decrypting the verification and the contents use the same
+  // 'aes_ctr' so order is important. this is also to be the case when
+  // encrypting in 'sscrpted.js'
+  
+  // decrypt the verification string to test if the password is correct
   const str_verify = "{{{$verify}}}";
   const key_verify = aesjs.utils.utf8.fromBytes(aes_ctr.decrypt(aesjs.utils.hex.toBytes(str_verify)));
   
   if (key_verify != "minna chiruno no sansei kyoushitsu hajimaru yo~")
     return false;
   
+  // decrypt the contents and load them into a 'html' element
   const payload = "{{{$content}}}";
   const content = aesjs.utils.utf8.fromBytes(aes_ctr.decrypt(aesjs.utils.hex.toBytes(payload)));
   const html = document.createElement("html");
   html.innerHTML = content;
-
+  
+  // delete all existing nodes
   document.head.innerHTML = "";
   document.body.innerHTML = "";
-
+  
+  // copy the contents of the 'html' element into the DOM
   while (html.children[0].childNodes.length)
     document.head.appendChild(html.children[0].childNodes[0]);
-
   while (html.children[1].childNodes.length)
     document.body.appendChild(html.children[1].childNodes[0]);
 
+  // recursively traverse the nodes to load in encrypted assets and load
+  // scripts
   unpack_node(document.head, key);
   unpack_node(document.body, key);
   
   return true;
 }
 
+// generate a key using scrypt
 function gen_pwd(pwd, salt)
 {
   const bytes_pwd = aesjs.utils.utf8.toBytes(pwd.normalize("NFKC"));
@@ -46,8 +56,11 @@ function gen_pwd(pwd, salt)
 async function unpack_node(node, key)
 {
   for (const child_node of node.children) {
+    // ensure that all child nodes are walked first to prevent data from being
+    // overwritten potentially
     unpack_node(child_node, key);
     
+    // asynchronously load all encrypted resources referenced in 'href' or 'src'
     const node_href = await load_attribute_resource(child_node, "href", key);
     const node_src = await load_attribute_resource(child_node, "src", key);
     
@@ -69,18 +82,25 @@ async function load_attribute_resource(node, attr, key)
     const node_attr = node.getAttribute(attr);
     const match_attr = reg_exp.exec(node_attr);
     
-    if (match_attr) {
+    if (node_attr && match_attr) {
       decrypt_resource(key, match_attr[1]).then((blob_url) => {
         resolve(blob_url);
       });
     } else {
+      // this node doesn't have the specified attribute or doesn't use an
+      // encrypted resource 
       resolve(null);
     }
   });
 }
 
+// because encrypted 'js' is loaded in after the DOM page has already loaded,
+// they need to be ran again. this can be done by copying the script node and
+// replacing the current one
 function reload_js(node)
 {
+  // load them into an array to prevent altering the node while it is being
+  // iterated on
   const to_add = [];
   const to_remove = [];
   
@@ -96,6 +116,7 @@ function reload_js(node)
     }
   }
   
+  // apply changes
   for (const script_node of to_remove)
     node.removeChild(script_node);
   
@@ -107,6 +128,10 @@ async function decrypt_resource(key, url)
 {
   return new Promise((resolve, reject) => {
     const enc_bin_url = url + ".enc";
+    
+    // load the contents of the encrypted asset using XHR
+    // this means it may not work on local html pages due to CORS and needs to
+    // be hosted
     
     const xhr = new XMLHttpRequest();
     xhr.open("GET", enc_bin_url);

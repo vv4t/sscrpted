@@ -16,16 +16,18 @@ function main()
   
   let salt = "abc123!@#";
   
-  let n_arg = 2;
-  const page = process.argv[n_arg++];
-  const login = process.argv[n_arg++];
-  const pwd = process.argv[n_arg++];
-  const out = process.argv[n_arg++];
+  // process default args
+  let argc = 2;
+  const page = process.argv[argc];
+  const login = process.argv[argc++];
+  const pwd = process.argv[argc++];
+  const out = process.argv[argc++];
   
-  while (n_arg < process.argv.length) {
-    if (process.argv[n_arg] == "-s") {
-      n_arg++;
-      salt = process.argv[n_arg++];
+  // process optional args
+  while (argc < process.argv.length) {
+    if (process.argv[argc] == "-s") {
+      argc++;
+      salt = process.argv[argc++];
     }
   }
   
@@ -35,7 +37,32 @@ function main()
 
 function show_help()
 {
-  const usage = "Usage:\n  sccrpted <page> <login> <password> <output> [options]\n\n  <page>:     path to html page to encrypt\n  <login>:    path to html page for user login\n  <password>: password to encrypt with\n  <output>:   path to output '.html' page\n\n";
+  const usage = [
+    {
+      name: "page",
+      description: "path to html page to encrypt"
+    },
+    {
+      name: "login",
+      description: "path to html page for user login"
+    },
+    {
+      name: "password",
+      description: "password to encrypt with"
+    },
+    {
+      name: "output",
+      description: "path to output html page"
+    }
+  ];
+  
+  let str_usage = "Usage:\n  sccrpted <page> <login> <password> <output> [options]\n";
+  for (const use of usage) {
+    str_usage += "\n  ";
+    str_usage += ("<" + use.name + ">:").padEnd(16);
+    str_usage += use.description;
+  }
+  
   const options = [
     {
       name: "s <salt>",
@@ -46,11 +73,11 @@ function show_help()
   let str_option = "Options:";
   for (const option of options) {
     str_option += "\n  ";
-    str_option += ("-" + option.name + ":").padEnd(11);
-    str_option += " " + option.description;
+    str_option += ("-" + option.name + ":").padEnd(16);
+    str_option += option.description;
   }
   
-  console.log(usage + str_option);
+  console.log(str_usage + "\n\n" + str_option);
 }
 
 function encrypt_page(page, login, key, salt, out)
@@ -58,14 +85,20 @@ function encrypt_page(page, login, key, salt, out)
   const in_html = fs.readFileSync(page, "utf8");
 
   const aes_ctr = new aesjs.ModeOfOperation.ctr(key);
-
+  
+  // Encrypt both the verify string and input html page and store as hex
+  // Note that they both use the same 'aes_ctr' with the verification being
+  // encrypted first then the page
   const enc_verify = aesjs.utils.hex.fromBytes(aes_ctr.encrypt(aesjs.utils.utf8.toBytes(STR_VERIFY), key));
   const byte_array = aesjs.utils.utf8.toBytes(in_html);
   const enc_in = aes_ctr.encrypt(byte_array, key);
   const enc_hex = aesjs.utils.hex.fromBytes(enc_in);
   
+  // The template script to decrypt and load the page
   const script_path = path.resolve(__dirname, "script.html");
   
+  // 'Flatten' out the final page by substituting the encrypted strings in
+  // their respective places
   const login_html = fs.readFileSync(login, "utf8");
   const script_html = fs.readFileSync(script_path, "utf8");
   let out_html = script_html.replace("{{{$content}}}", enc_hex);
@@ -75,11 +108,15 @@ function encrypt_page(page, login, key, salt, out)
   
   fs.writeFileSync(out, out_html);
   
+  // Find and encrypt the files referenced in the input page
   encrypt_files(page, out, in_html, key);
 }
 
 function encrypt_files(page, out, in_html, key)
 {
+  // Only certain files are marked for encryption using
+  // {{{$encrypt:file_name.ext}}}
+  // Match these using regex
   const reg_exp = new RegExp(/{{{\$encrypt\:(.+)}}}/gm);
   const out_dir = path.dirname(out);
 
@@ -87,22 +124,24 @@ function encrypt_files(page, out, in_html, key)
   while (match) {
     const aes_ctr = new aesjs.ModeOfOperation.ctr(key);
     
-    const base = match[1];
-    const in_path = path.join(path.dirname(page), base);
+    const base = match[1]; // the directory + file given
+    const in_path = path.join(path.dirname(page), base); // append it relative to the target page
     const byte_array = fs.readFileSync(in_path);
     const enc_text = aes_ctr.encrypt(byte_array);
     
     const out_path = path.join(out_dir, base);
     
+    // ensure all asset folders exist, e.g. for 'out/res/image.png',  mkdir out/res
     if (!fs.existsSync(path.dirname(out_path)))
       fs.mkdirSync(path.dirname(out_path), { recursive: true });
     
     fs.writeFileSync(out_path + ".enc", enc_text);
     
-    match = reg_exp.exec(in_html);
+    match = reg_exp.exec(in_html); // find the next match
   }
 }
 
+// generate a key using scrypt
 function gen_pwd(pwd, salt)
 {
   const bytes_pwd = aesjs.utils.utf8.toBytes(pwd.normalize("NFKC"));
